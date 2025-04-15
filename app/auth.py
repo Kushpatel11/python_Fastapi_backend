@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
-from typing import Optional
+
 
 from db import get_db
 from models import User
-from schemas import UserCreate, UserLogin, UserOut
+from schemas import UserCreate, UserLogin,UserUpdate
 
 import os
 from dotenv import load_dotenv
@@ -17,12 +17,14 @@ load_dotenv()
 bearer_scheme = HTTPBearer()
 
 router = APIRouter()
-SECRET_KEY = os.getenv("SECRET_KEY", "defaultsecret")
+
+SECRET_KEY = os.getenv("SECRET_KEY", "default_secret")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
+ADMIN_EMAIL = "admin@demo.com"
+ADMIN_PASSWORD = "admin123"
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
@@ -53,7 +55,7 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(email == User.email).first()
     if user is None:
         raise credentials_exception
     return user
@@ -67,16 +69,19 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
         firstname=user.firstname,
         lastname=user.lastname,
         email=user.email,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        mobile =user.mobile
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return {"message": "User registered successfully"}
 
+
+
 @router.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.email == user.email).first()
+    db_user = db.query(User).filter(user.email == User.email).first()
     if not db_user or not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     access_token = create_access_token(data={"sub": db_user.email})
@@ -85,3 +90,39 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 @router.get("/profile")
 def profile(current_user: dict = Depends(get_current_user)):
     return {"user":current_user}
+
+
+@router.put("/profile", response_model=dict)
+def update_profile(
+    data: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Update only provided fields
+    if data.firstname:
+        current_user.firstname = data.firstname
+    if data.lastname:
+        current_user.lastname = data.lastname
+    if data.email:
+        current_user.email = data.email
+    if data.mobile:
+        current_user.mobile = data.mobile
+
+    db.commit()
+    db.refresh(current_user)
+    return {"message": "Profile updated successfully"}
+
+@router.delete("/profile")
+def delete_current_user(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)
+    db.commit()
+    return {"msg": "User deleted successfully"}
+
+
+

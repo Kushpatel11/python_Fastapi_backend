@@ -2,6 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db import Base, engine
 from auth import router as auth_router
+from admin import router as admin_router
+from fastapi.routing import APIRoute
+
+
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -22,4 +26,9 @@ def root():
     return {"message": "🚀 Hello from FastAPI"}
 
 # Auth APIs
-app.include_router(auth_router)
+app.include_router(auth_router, prefix="/auth", tags=["Auth"])
+app.include_router(admin_router, prefix="/admin", tags=["Admin"])
+
+
+
+

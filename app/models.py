@@ -9,3 +9,6 @@ class User(Base):
     lastname = Column(String(50))
     email = Column(String(100), unique=True, index=True)
     hashed_password = Column(String(255))
+    mobile = Column(String(10),unique=True,index=True)
+
+
