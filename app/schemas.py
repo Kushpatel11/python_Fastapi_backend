@@ -6,7 +6,7 @@ class UserCreate(BaseModel):
     lastname: str
     email: EmailStr
     password: str
-    mobile: Optional[str]
+    mobile: Optional[str]=None
 
 
 class UserLogin(BaseModel):

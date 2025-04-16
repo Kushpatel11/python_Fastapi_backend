@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from jose import jwt, JWTError
@@ -23,8 +23,7 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-ADMIN_EMAIL = "admin@demo.com"
-ADMIN_PASSWORD = "admin123"
+
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
@@ -62,21 +61,22 @@ def get_current_user(
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(user: UserCreate, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == user.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    hashed_password = get_password_hash(user.password)
-    db_user = User(
-        firstname=user.firstname,
-        lastname=user.lastname,
-        email=user.email,
-        hashed_password=hashed_password,
-        mobile =user.mobile
-    )
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return {"message": "User registered successfully"}
-
+    
+        if db.query(User).filter(user.email == User.email).first():
+            raise HTTPException(status_code=400, detail="Email already registered")
+        hashed_password = get_password_hash(user.password)
+        db_user = User(
+            firstname=user.firstname,
+            lastname=user.lastname,
+            email=user.email,
+            hashed_password=hashed_password,
+            mobile =user.mobile
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        return {"message": "User registered successfully"}
+ 
 
 
 @router.post("/login")

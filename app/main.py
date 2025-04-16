@@ -3,7 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from db import Base, engine
 from auth import router as auth_router
 from admin import router as admin_router
-from fastapi.routing import APIRoute
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 

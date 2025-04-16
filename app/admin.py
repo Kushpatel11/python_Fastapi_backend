@@ -31,6 +31,3 @@ def admin_login(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": token, "token_type": "bearer"}
 
 
-@router.get("/test")
-def test():
-    return {"msg": "Admin router is working"}
