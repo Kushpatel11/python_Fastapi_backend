@@ -29,3 +29,8 @@ class UserUpdate(BaseModel):
     lastname: Optional[str]
     email: Optional[EmailStr]
     mobile: Optional[str]
+
+
+
+class TokenData(BaseModel):
+    email: str
