@@ -79,6 +79,7 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
         email=user.email,
         hashed_password=hashed_password,
         mobile=user.mobile,
+        role="user",
     )
     db.add(db_user)
     db.commit()

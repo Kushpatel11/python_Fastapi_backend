@@ -8,7 +8,6 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 
-
 # Create tables
 Base.metadata.create_all(bind=engine)
 
@@ -23,14 +22,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def root():
     return {"message": "🚀 Hello from FastAPI"}
 
+
 # Auth APIs
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
 app.include_router(admin_router, prefix="/admin", tags=["Admin"])
-
-
-
-

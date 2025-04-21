@@ -1,21 +1,28 @@
 # admin.py
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.security import HTTPAuthorizationCredentials, OAuth2PasswordRequestForm,HTTPBearer
-from jose import jwt,JWTError
+from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi.security import (
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+)
+from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from schemas import AdminLogin
 from db import get_db
 from models import User
+from passlib.context import CryptContext
+from typing import List
+from schemas import UserOut
 
-router = APIRouter( )
+from dotenv import load_dotenv
+
+load_dotenv()
+
+router = APIRouter()
 
 SECRET_KEY = "your_secret"
 ALGORITHM = "HS256"
-
-ADMIN_EMAIL = "admin@demo.com"
-ADMIN_PASSWORD = "admin123"
-
-
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 auth_scheme = HTTPBearer()
 
 
@@ -26,61 +33,76 @@ def create_access_token(data: dict):
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(auth_scheme)) -> str:
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def get_current_admin(
+    credentials: HTTPAuthorizationCredentials = Depends(auth_scheme),
+    db: Session = Depends(get_db),
+):
     token = credentials.credentials
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email = payload.get("sub")
-        if email != ADMIN_EMAIL:
-            raise HTTPException(status_code=403, detail="Not authorized")
-        return email
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
     except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise credentials_exception
+
+    admin = db.query(User).filter(User.email == email).first()
+    if admin is None:
+        raise credentials_exception
+    return admin
+
+
+def get_all_users(db: Session = Depends(get_db)):
+    return
+
 
 @router.post("/login", tags=["Admin"])
-def admin_login(form_data: OAuth2PasswordRequestForm = Depends()):
+def admin_login(admin: AdminLogin, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == admin.adminEmail).first()
 
+    if db_user is None:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    if form_data.username != ADMIN_EMAIL or form_data.password != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if db_user.role != "admin":
+        raise HTTPException(status_code=403, detail="You are not authorized as admin")
 
-    token = create_access_token({"sub": form_data.username})
+    if not pwd_context.verify(admin.adminPassword, db_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    token = create_access_token(data={"sub": db_user.email, "role": db_user.role})
     return {"access_token": token, "token_type": "bearer"}
 
 
-@router.get("/users", tags=["Admin"])
-def get_all_users(
-    admin_email: str = Depends(verify_admin_token),
-    db: Session = Depends(get_db)
+@router.get("/admin-dashboard", tags=["Admin"], response_model=List[UserOut])
+def admin_dashboard(
+    current_admin: User = Depends(get_current_admin), db: Session = Depends(get_db)
 ):
+    if current_admin.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized as admin")
+
     users = db.query(User).all()
-    return {
-        "admin": admin_email,
-        "users": [
-    {
-        "id": user.id,
-        "firstname": user.firstname,
-        "lastname": user.lastname,
-        "email": user.email,
-        "mobile": user.mobile
-    }
-    for user in users
-]
-    }
+    return users
 
 
-@router.delete("/users/{user_id}", tags=["Admin"])
+@router.delete("/admin-delete-user/{id}", tags=["Admin"])
 def delete_user_by_id(
-    user_id: int,
-    admin_email: str = Depends(verify_admin_token),
-    db: Session = Depends(get_db)
+    id: int, db: Session = Depends(get_db), admin_user=Depends(get_current_admin)
 ):
-    user = db.query(User).filter(User.id == user_id).first()
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    if admin_user:
+        user = db.query(User).filter(User.id == id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    db.delete(user)
-    db.commit()
-
-    return {"message": f"User with ID {user_id} deleted successfully"}
+        db.delete(user)
+        db.commit()
+        return {"message": "User deleted successfully"}
